@@ -76,6 +76,29 @@ score-history endpoint only reports the score itself for older days, not
 time or distance, so those two columns are blank for anything pulled in
 via `--from`/`--to`. Recent days may have them filled in.
 
+## Charts and statistics
+
+```
+python report.py
+```
+
+Prints a per-player stats table and saves four charts as PNGs into `plots/`:
+
+- `score_trends.png` — everyone's score over time
+- `score_distribution.png` — box plot of each player's score spread
+- `average_scores.png` — average score by player, with error bars for
+  score variability
+- `wins.png` — how many days each player had the top score (ties count
+  for everyone tied)
+
+The stats table includes games played, average/median/best/worst score,
+and win count/rate. Options:
+
+```
+python report.py --csv path/to/scores.csv --output-dir path/to/plots
+python report.py --no-plots      # just print the table, skip the charts
+```
+
 ## Sharing one CSV as a team
 
 Each run only adds the account that ran it, so the team's data comes from
