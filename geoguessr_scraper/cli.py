@@ -14,7 +14,7 @@ from .parse import iter_month_entries, profile_identity, score_row_from_month_en
 from .store import sync_rows
 
 REQUEST_DELAY_SECONDS = 1.0
-DEFAULT_LOOKBACK_DAYS = 6  # matches what GeoGuessr's own "past week" widget shows
+DEFAULT_LOOKBACK_DAYS = 100  # matches what GeoGuessr's own "past week" widget shows
 
 
 def valid_date(value: str) -> str:
