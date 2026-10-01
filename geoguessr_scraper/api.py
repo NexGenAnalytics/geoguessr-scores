@@ -2,7 +2,6 @@
 
 import time
 from typing import Optional
-from urllib.parse import quote
 
 import requests
 
@@ -11,7 +10,6 @@ RETRY_STATUSES = {429, 500, 502, 503, 504}
 MAX_ATTEMPTS = 4
 BACKOFF_SECONDS = 2.0
 REQUEST_TIMEOUT = 20
-RESULTS_PAGE_SIZE = 26  # the largest page GeoGuessr's own results page asks for
 
 
 class AuthError(Exception):
@@ -77,9 +75,6 @@ class GeoGuessrClient:
         """The last several days' challenges (about six), each with its token."""
         return self._get("challenges/daily-challenges/previous")
 
-    def get_challenge_results(self, token: str, pagination_token: Optional[str] = None) -> object:
-        """One page of your and your friends' finished games for a challenge, highest score first."""
-        path = f"results/highscores/{token}?friends=true&limit={RESULTS_PAGE_SIZE}"
-        if pagination_token:
-            path += f"&paginationToken={quote(pagination_token)}"
-        return self._get(path)
+    def get_my_challenge_game(self, token: str) -> object:
+        """Your own game for a challenge you've played, round by round."""
+        return self._get(f"challenges/{token}/game")

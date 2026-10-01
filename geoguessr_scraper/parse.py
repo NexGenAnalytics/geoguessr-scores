@@ -101,18 +101,16 @@ def daily_tokens_by_date(challenges: List[object]) -> Dict[str, str]:
     return tokens
 
 
-def player_result(payload: object, player_id: str) -> Optional[dict]:
-    """The given player's finished game from a results/highscores response.
+def finished_player(game: object) -> Optional[dict]:
+    """The player block of a finished game from GET /challenges/{token}/game.
 
-    Verified against the live API (2026-10): {"items": [{"game": {"player": {"id",
-    "totalTime", "totalDistanceInMeters", "guesses": [{"roundScoreInPoints"}, ...]}}}]}.
+    Verified against the live API (2026-10): {"state": "finished", "player": {"id",
+    "totalTime", "totalDistanceInMeters", "guesses": [{"roundScoreInPoints"}, ...]}}.
     """
-    items = payload.get("items") if isinstance(payload, dict) else None
-    for item in items or []:
-        player = (item.get("game") or {}).get("player") if isinstance(item, dict) else None
-        if isinstance(player, dict) and str(player.get("id")) == player_id:
-            return player
-    return None
+    if not isinstance(game, dict) or game.get("state") != "finished":
+        return None
+    player = game.get("player")
+    return player if isinstance(player, dict) else None
 
 
 def round_scores_from_result(player: dict) -> Optional[Tuple[int, ...]]:

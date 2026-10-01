@@ -13,8 +13,8 @@ from .config import ConfigError, load_ncfa_cookie
 from .models import ScoreRow
 from .parse import (
     daily_tokens_by_date,
+    finished_player,
     iter_month_entries,
-    player_result,
     profile_identity,
     round_scores_from_result,
     score_row_from_month_entry,
@@ -23,7 +23,6 @@ from .store import sync_rows
 
 REQUEST_DELAY_SECONDS = 1.0
 DEFAULT_LOOKBACK_DAYS = 100
-MAX_RESULT_PAGES = 20  # 26 games a page, so this covers about 500 friends
 
 
 def valid_date(value: str) -> str:
@@ -81,20 +80,7 @@ def months_between(start: date, end: date) -> List[Tuple[int, int]]:
     return months
 
 
-def find_own_result(client: GeoGuessrClient, token: str, player_id: str) -> Optional[dict]:
-    """Page through the friends leaderboard until the player's own game shows up."""
-    pagination_token = None
-    for _ in range(MAX_RESULT_PAGES):
-        payload = client.get_challenge_results(token, pagination_token)
-        time.sleep(REQUEST_DELAY_SECONDS)
-        result = player_result(payload, player_id)
-        pagination_token = payload.get("paginationToken") if isinstance(payload, dict) else None
-        if result or not pagination_token:
-            return result
-    return None
-
-
-def add_round_details(client: GeoGuessrClient, rows: List[ScoreRow], player_id: str) -> List[ScoreRow]:
+def add_round_details(client: GeoGuessrClient, rows: List[ScoreRow]) -> List[ScoreRow]:
     """Fill in token, rounds, time, and distance for days GeoGuessr still exposes (~last week)."""
     recent = [client.get_today_daily_challenge()] + list(client.get_previous_daily_challenges() or [])
     tokens = daily_tokens_by_date(recent)
@@ -104,10 +90,13 @@ def add_round_details(client: GeoGuessrClient, rows: List[ScoreRow], player_id: 
         if not token:
             detailed.append(row)
             continue
-        result = find_own_result(client, token, player_id)
-        if not result:
-            print(f"  warning: couldn't find your game in the {row.challenge_date} results; no round scores")
-        else:
+        try:
+            result = finished_player(client.get_my_challenge_game(token))
+        except ApiError as exc:
+            result = None
+            print(f"  warning: couldn't load your {row.challenge_date} game ({exc}); no round scores")
+        time.sleep(REQUEST_DELAY_SECONDS)
+        if result:
             row = replace(
                 row,
                 challenge_token=token,
@@ -164,7 +153,7 @@ def scrape(
         (r for r in rows if start_str <= r.challenge_date <= end_str),
         key=lambda r: r.challenge_date,
     )
-    in_range = add_round_details(client, in_range, player_id)
+    in_range = add_round_details(client, in_range)
     for row in in_range:
         rounds = f"  (rounds: {', '.join(map(str, row.round_scores))})" if row.round_scores else ""
         print(f"  {row.challenge_date}: {row.total_score} points{rounds}")

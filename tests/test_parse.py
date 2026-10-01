@@ -1,7 +1,7 @@
 from geoguessr_scraper.parse import (
     daily_tokens_by_date,
+    finished_player,
     iter_month_entries,
-    player_result,
     profile_identity,
     round_scores_from_result,
     score_row_from_month_entry,
@@ -91,20 +91,23 @@ def test_daily_tokens_by_date_skips_entries_missing_fields():
     assert daily_tokens_by_date(challenges) == {"2026-09-30": "abc"}
 
 
-def make_result(player_id, round_points):
+def make_game(round_points, state="finished"):
     guesses = [{"roundScoreInPoints": points, "roundScore": {"amount": str(points)}} for points in round_points]
-    return {"game": {"player": {"id": player_id, "totalTime": 900, "guesses": guesses}}}
+    return {"state": state, "player": {"id": "me", "totalTime": 900, "guesses": guesses}}
 
 
-def test_player_result_finds_own_game_among_friends():
-    payload = {"items": [make_result("friend", [1] * 5), make_result("me", [2] * 5)]}
-    assert player_result(payload, "me")["guesses"][0]["roundScoreInPoints"] == 2
-    assert player_result(payload, "stranger") is None
-    assert player_result({"unexpected": []}, "me") is None
+def test_finished_player_returns_player_block():
+    assert finished_player(make_game([5000] * 5))["totalTime"] == 900
+
+
+def test_finished_player_rejects_unfinished_or_malformed_games():
+    assert finished_player(make_game([5000] * 3, state="started")) is None
+    assert finished_player({"state": "finished", "player": None}) is None
+    assert finished_player("not json") is None
 
 
 def test_round_scores_from_result_real_shape():
-    player = make_result("me", [4845, 5000, 4757, 4466, 4050])["game"]["player"]
+    player = make_game([4845, 5000, 4757, 4466, 4050])["player"]
     assert round_scores_from_result(player) == (4845, 5000, 4757, 4466, 4050)
 
 

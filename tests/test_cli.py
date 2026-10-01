@@ -11,11 +11,11 @@ from geoguessr_scraper.cli import build_parser, main, months_between, scrape, va
 class FakeClient:
     """Serves a canned profile and canned month summaries without any network."""
 
-    def __init__(self, profile, summaries_by_month, daily_challenges=(), results_by_token=None):
+    def __init__(self, profile, summaries_by_month, daily_challenges=(), games_by_token=None):
         self._profile = profile
         self._summaries = summaries_by_month
         self._daily = list(daily_challenges)
-        self._results = results_by_token or {}
+        self._games = games_by_token or {}
         self.requested_months = []
         self.requested_tokens = []
 
@@ -32,10 +32,12 @@ class FakeClient:
     def get_previous_daily_challenges(self):
         return self._daily[1:]
 
-    def get_challenge_results(self, token, pagination_token=None):
-        self.requested_tokens.append((token, pagination_token))
-        pages = self._results.get(token, [{"items": []}])
-        return pages[int(pagination_token or 0)]
+    def get_my_challenge_game(self, token):
+        self.requested_tokens.append(token)
+        game = self._games.get(token)
+        if isinstance(game, Exception):
+            raise game
+        return game or {}
 
 
 class FrozenDatetime(real_datetime):
@@ -123,51 +125,41 @@ def test_scrape_skips_unplayed_days():
     assert rows == []
 
 
-def test_scrape_adds_round_details_for_recent_days(capsys):
+def finished_game(round_points, total_time=600):
+    guesses = [{"roundScoreInPoints": points} for points in round_points]
+    return {"state": "finished", "player": {"id": "p1", "totalTime": total_time, "guesses": guesses}}
+
+
+def test_scrape_adds_round_details_from_own_game():
+    """Regression: round scores used to come from the friends leaderboard, which
+    leaves out some players entirely, so their rows never got round scores."""
     client = make_client()
-    guesses = [{"roundScoreInPoints": points} for points in (5000, 4000, 4000, 4000, 4000)]
     client._daily = [
         {"date": "2026-07-16T17:00:00Z", "token": "today"},
         {"date": "2026-07-15T17:00:00Z", "token": "yesterday"},
     ]
-    client._results = {
-        "today": [{"items": [{"game": {"player": {"id": "p1", "totalTime": 600, "guesses": guesses}}}]}],
-    }
+    client._games = {"today": finished_game((5000, 4000, 4000, 4000, 4000)), "yesterday": finished_game((1,) * 5)}
     rows = {r.challenge_date: r for r in scrape(client)}
 
-    assert client.requested_tokens == [("yesterday", None), ("today", None)]
+    assert client.requested_tokens == ["yesterday", "today"]
     assert rows["2026-07-16"].round_scores == (5000, 4000, 4000, 4000, 4000)
     assert rows["2026-07-16"].challenge_token == "today"
     assert rows["2026-07-16"].total_time_seconds == 600
-    assert rows["2026-07-15"].round_scores is None  # player's game wasn't in the results
-    assert "couldn't find your game in the 2026-07-15 results" in capsys.readouterr().out
+    assert rows["2026-07-15"].round_scores == (1,) * 5
 
 
-def friend_page(player_ids, next_page=None):
-    items = [{"game": {"player": {"id": pid, "guesses": [{"roundScoreInPoints": 5000}] * 5}}} for pid in player_ids]
-    return {"items": items, "paginationToken": next_page}
-
-
-def test_find_own_result_pages_past_higher_scoring_friends():
-    """Regression: players with many friends ranked above them got no round scores."""
+def test_scrape_keeps_going_when_a_game_fails_to_load(capsys):
     client = make_client()
-    client._results = {"tok": [friend_page(["f1", "f2"], "1"), friend_page(["f3", "p1"])]}
-    result = cli.find_own_result(client, "tok", "p1")
-    assert result["id"] == "p1"
-    assert client.requested_tokens == [("tok", None), ("tok", "1")]
+    client._daily = [
+        {"date": "2026-07-16T17:00:00Z", "token": "today"},
+        {"date": "2026-07-15T17:00:00Z", "token": "yesterday"},
+    ]
+    client._games = {"today": finished_game((5000,) * 5), "yesterday": cli.ApiError("HTTP 404")}
+    rows = {r.challenge_date: r for r in scrape(client)}
 
-
-def test_find_own_result_stops_at_last_page_or_page_cap(monkeypatch):
-    client = make_client()
-    client._results = {"tok": [friend_page(["f1"], "1"), friend_page(["f2"])]}
-    assert cli.find_own_result(client, "tok", "p1") is None
-    assert len(client.requested_tokens) == 2
-
-    monkeypatch.setattr(cli, "MAX_RESULT_PAGES", 3)
-    client = make_client()
-    client._results = {"tok": [friend_page(["f"], str(i + 1)) for i in range(10)]}
-    assert cli.find_own_result(client, "tok", "p1") is None
-    assert len(client.requested_tokens) == 3
+    assert rows["2026-07-16"].round_scores == (5000,) * 5
+    assert rows["2026-07-15"].round_scores is None
+    assert "couldn't load your 2026-07-15 game (HTTP 404)" in capsys.readouterr().out
 
 
 def test_scrape_raises_when_profile_has_no_id():
