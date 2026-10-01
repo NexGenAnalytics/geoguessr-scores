@@ -23,6 +23,7 @@ from .store import sync_rows
 
 REQUEST_DELAY_SECONDS = 1.0
 DEFAULT_LOOKBACK_DAYS = 100
+MAX_RESULT_PAGES = 20  # 26 games a page, so this covers about 500 friends
 
 
 def valid_date(value: str) -> str:
@@ -80,6 +81,19 @@ def months_between(start: date, end: date) -> List[Tuple[int, int]]:
     return months
 
 
+def find_own_result(client: GeoGuessrClient, token: str, player_id: str) -> Optional[dict]:
+    """Page through the friends leaderboard until the player's own game shows up."""
+    pagination_token = None
+    for _ in range(MAX_RESULT_PAGES):
+        payload = client.get_challenge_results(token, pagination_token)
+        time.sleep(REQUEST_DELAY_SECONDS)
+        result = player_result(payload, player_id)
+        pagination_token = payload.get("paginationToken") if isinstance(payload, dict) else None
+        if result or not pagination_token:
+            return result
+    return None
+
+
 def add_round_details(client: GeoGuessrClient, rows: List[ScoreRow], player_id: str) -> List[ScoreRow]:
     """Fill in token, rounds, time, and distance for days GeoGuessr still exposes (~last week)."""
     recent = [client.get_today_daily_challenge()] + list(client.get_previous_daily_challenges() or [])
@@ -90,9 +104,10 @@ def add_round_details(client: GeoGuessrClient, rows: List[ScoreRow], player_id: 
         if not token:
             detailed.append(row)
             continue
-        result = player_result(client.get_challenge_results(token), player_id)
-        time.sleep(REQUEST_DELAY_SECONDS)
-        if result:
+        result = find_own_result(client, token, player_id)
+        if not result:
+            print(f"  warning: couldn't find your game in the {row.challenge_date} results; no round scores")
+        else:
             row = replace(
                 row,
                 challenge_token=token,

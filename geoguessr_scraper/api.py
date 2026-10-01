@@ -2,6 +2,7 @@
 
 import time
 from typing import Optional
+from urllib.parse import quote
 
 import requests
 
@@ -76,6 +77,9 @@ class GeoGuessrClient:
         """The last several days' challenges (about six), each with its token."""
         return self._get("challenges/daily-challenges/previous")
 
-    def get_challenge_results(self, token: str) -> object:
-        """Your own and your friends' finished games for one challenge, round by round."""
-        return self._get(f"results/highscores/{token}?friends=true&limit={RESULTS_PAGE_SIZE}")
+    def get_challenge_results(self, token: str, pagination_token: Optional[str] = None) -> object:
+        """One page of your and your friends' finished games for a challenge, highest score first."""
+        path = f"results/highscores/{token}?friends=true&limit={RESULTS_PAGE_SIZE}"
+        if pagination_token:
+            path += f"&paginationToken={quote(pagination_token)}"
+        return self._get(path)

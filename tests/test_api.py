@@ -86,3 +86,11 @@ def test_month_summary_url():
     client, session = make_client([FakeResponse(200, [])])
     client.get_month_summary(2026, 7)
     assert session.requested[0].endswith("challenges/daily-challenges/me/month?year=2026&month=7")
+
+
+def test_challenge_results_url_encodes_pagination_token():
+    client, session = make_client([FakeResponse(200, {}), FakeResponse(200, {})])
+    client.get_challenge_results("tok")
+    client.get_challenge_results("tok", "eyJ+a/b==")
+    assert session.requested[0].endswith("results/highscores/tok?friends=true&limit=26")
+    assert session.requested[1].endswith("&paginationToken=eyJ%2Ba/b%3D%3D")

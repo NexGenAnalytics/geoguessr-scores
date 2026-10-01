@@ -32,9 +32,10 @@ class FakeClient:
     def get_previous_daily_challenges(self):
         return self._daily[1:]
 
-    def get_challenge_results(self, token):
-        self.requested_tokens.append(token)
-        return self._results.get(token, {"items": []})
+    def get_challenge_results(self, token, pagination_token=None):
+        self.requested_tokens.append((token, pagination_token))
+        pages = self._results.get(token, [{"items": []}])
+        return pages[int(pagination_token or 0)]
 
 
 class FrozenDatetime(real_datetime):
@@ -122,7 +123,7 @@ def test_scrape_skips_unplayed_days():
     assert rows == []
 
 
-def test_scrape_adds_round_details_for_recent_days():
+def test_scrape_adds_round_details_for_recent_days(capsys):
     client = make_client()
     guesses = [{"roundScoreInPoints": points} for points in (5000, 4000, 4000, 4000, 4000)]
     client._daily = [
@@ -130,15 +131,43 @@ def test_scrape_adds_round_details_for_recent_days():
         {"date": "2026-07-15T17:00:00Z", "token": "yesterday"},
     ]
     client._results = {
-        "today": {"items": [{"game": {"player": {"id": "p1", "totalTime": 600, "guesses": guesses}}}]},
+        "today": [{"items": [{"game": {"player": {"id": "p1", "totalTime": 600, "guesses": guesses}}}]}],
     }
     rows = {r.challenge_date: r for r in scrape(client)}
 
-    assert client.requested_tokens == ["yesterday", "today"]
+    assert client.requested_tokens == [("yesterday", None), ("today", None)]
     assert rows["2026-07-16"].round_scores == (5000, 4000, 4000, 4000, 4000)
     assert rows["2026-07-16"].challenge_token == "today"
     assert rows["2026-07-16"].total_time_seconds == 600
     assert rows["2026-07-15"].round_scores is None  # player's game wasn't in the results
+    assert "couldn't find your game in the 2026-07-15 results" in capsys.readouterr().out
+
+
+def friend_page(player_ids, next_page=None):
+    items = [{"game": {"player": {"id": pid, "guesses": [{"roundScoreInPoints": 5000}] * 5}}} for pid in player_ids]
+    return {"items": items, "paginationToken": next_page}
+
+
+def test_find_own_result_pages_past_higher_scoring_friends():
+    """Regression: players with many friends ranked above them got no round scores."""
+    client = make_client()
+    client._results = {"tok": [friend_page(["f1", "f2"], "1"), friend_page(["f3", "p1"])]}
+    result = cli.find_own_result(client, "tok", "p1")
+    assert result["id"] == "p1"
+    assert client.requested_tokens == [("tok", None), ("tok", "1")]
+
+
+def test_find_own_result_stops_at_last_page_or_page_cap(monkeypatch):
+    client = make_client()
+    client._results = {"tok": [friend_page(["f1"], "1"), friend_page(["f2"])]}
+    assert cli.find_own_result(client, "tok", "p1") is None
+    assert len(client.requested_tokens) == 2
+
+    monkeypatch.setattr(cli, "MAX_RESULT_PAGES", 3)
+    client = make_client()
+    client._results = {"tok": [friend_page(["f"], str(i + 1)) for i in range(10)]}
+    assert cli.find_own_result(client, "tok", "p1") is None
+    assert len(client.requested_tokens) == 3
 
 
 def test_scrape_raises_when_profile_has_no_id():
