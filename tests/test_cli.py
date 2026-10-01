@@ -11,10 +11,13 @@ from geoguessr_scraper.cli import build_parser, main, months_between, scrape, va
 class FakeClient:
     """Serves a canned profile and canned month summaries without any network."""
 
-    def __init__(self, profile, summaries_by_month):
+    def __init__(self, profile, summaries_by_month, daily_challenges=(), results_by_token=None):
         self._profile = profile
         self._summaries = summaries_by_month
+        self._daily = list(daily_challenges)
+        self._results = results_by_token or {}
         self.requested_months = []
+        self.requested_tokens = []
 
     def get_my_profile(self):
         return self._profile
@@ -22,6 +25,16 @@ class FakeClient:
     def get_month_summary(self, year, month):
         self.requested_months.append((year, month))
         return self._summaries.get((year, month), [])
+
+    def get_today_daily_challenge(self):
+        return self._daily[0] if self._daily else {}
+
+    def get_previous_daily_challenges(self):
+        return self._daily[1:]
+
+    def get_challenge_results(self, token):
+        self.requested_tokens.append(token)
+        return self._results.get(token, {"items": []})
 
 
 class FrozenDatetime(real_datetime):
@@ -84,9 +97,10 @@ def test_months_between_spans_year_boundary():
 
 def test_scrape_default_range_uses_frozen_today():
     client = make_client()
-    rows = scrape(client)  # default: 6 days before 2026-07-16 through 2026-07-16
-    assert client.requested_months == [(2026, 7)]
+    rows = scrape(client)  # default: 100 days before 2026-07-16 (2026-04-07) through 2026-07-16
+    assert client.requested_months == [(2026, 4), (2026, 5), (2026, 6), (2026, 7)]
     assert [(r.challenge_date, r.total_score) for r in rows] == [
+        ("2026-06-30", 9000),
         ("2026-07-15", 18000),
         ("2026-07-16", 21000),
     ]
@@ -106,6 +120,25 @@ def test_scrape_skips_unplayed_days():
     client = make_client()
     rows = scrape(client, from_date="2026-07-14", to_date="2026-07-14")
     assert rows == []
+
+
+def test_scrape_adds_round_details_for_recent_days():
+    client = make_client()
+    guesses = [{"roundScoreInPoints": points} for points in (5000, 4000, 4000, 4000, 4000)]
+    client._daily = [
+        {"date": "2026-07-16T17:00:00Z", "token": "today"},
+        {"date": "2026-07-15T17:00:00Z", "token": "yesterday"},
+    ]
+    client._results = {
+        "today": {"items": [{"game": {"player": {"id": "p1", "totalTime": 600, "guesses": guesses}}}]},
+    }
+    rows = {r.challenge_date: r for r in scrape(client)}
+
+    assert client.requested_tokens == ["yesterday", "today"]
+    assert rows["2026-07-16"].round_scores == (5000, 4000, 4000, 4000, 4000)
+    assert rows["2026-07-16"].challenge_token == "today"
+    assert rows["2026-07-16"].total_time_seconds == 600
+    assert rows["2026-07-15"].round_scores is None  # player's game wasn't in the results
 
 
 def test_scrape_raises_when_profile_has_no_id():

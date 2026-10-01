@@ -3,6 +3,7 @@
 import argparse
 import sys
 import time
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -10,11 +11,18 @@ from typing import List, Optional, Tuple
 from .api import ApiError, AuthError, GeoGuessrClient
 from .config import ConfigError, load_ncfa_cookie
 from .models import ScoreRow
-from .parse import iter_month_entries, profile_identity, score_row_from_month_entry
+from .parse import (
+    daily_tokens_by_date,
+    iter_month_entries,
+    player_result,
+    profile_identity,
+    round_scores_from_result,
+    score_row_from_month_entry,
+)
 from .store import sync_rows
 
 REQUEST_DELAY_SECONDS = 1.0
-DEFAULT_LOOKBACK_DAYS = 100  # matches what GeoGuessr's own "past week" widget shows
+DEFAULT_LOOKBACK_DAYS = 100
 
 
 def valid_date(value: str) -> str:
@@ -72,6 +80,30 @@ def months_between(start: date, end: date) -> List[Tuple[int, int]]:
     return months
 
 
+def add_round_details(client: GeoGuessrClient, rows: List[ScoreRow], player_id: str) -> List[ScoreRow]:
+    """Fill in token, rounds, time, and distance for days GeoGuessr still exposes (~last week)."""
+    recent = [client.get_today_daily_challenge()] + list(client.get_previous_daily_challenges() or [])
+    tokens = daily_tokens_by_date(recent)
+    detailed = []
+    for row in rows:
+        token = tokens.get(row.challenge_date)
+        if not token:
+            detailed.append(row)
+            continue
+        result = player_result(client.get_challenge_results(token), player_id)
+        time.sleep(REQUEST_DELAY_SECONDS)
+        if result:
+            row = replace(
+                row,
+                challenge_token=token,
+                round_scores=round_scores_from_result(result),
+                total_time_seconds=result.get("totalTime"),
+                total_distance=result.get("totalDistanceInMeters"),
+            )
+        detailed.append(row)
+    return detailed
+
+
 def scrape(
     client: GeoGuessrClient,
     from_date: Optional[str] = None,
@@ -117,8 +149,10 @@ def scrape(
         (r for r in rows if start_str <= r.challenge_date <= end_str),
         key=lambda r: r.challenge_date,
     )
+    in_range = add_round_details(client, in_range, player_id)
     for row in in_range:
-        print(f"  {row.challenge_date}: {row.total_score} points")
+        rounds = f"  (rounds: {', '.join(map(str, row.round_scores))})" if row.round_scores else ""
+        print(f"  {row.challenge_date}: {row.total_score} points{rounds}")
     if not in_range:
         print(f"  no played days found between {start_str} and {end_str}")
     return in_range

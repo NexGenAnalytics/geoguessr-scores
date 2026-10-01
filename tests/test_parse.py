@@ -1,6 +1,9 @@
 from geoguessr_scraper.parse import (
+    daily_tokens_by_date,
     iter_month_entries,
+    player_result,
     profile_identity,
+    round_scores_from_result,
     score_row_from_month_entry,
 )
 
@@ -77,3 +80,39 @@ def test_score_row_from_month_entry_prefers_full_date_string_if_present():
 
 def test_score_row_from_month_entry_missing_day_and_date_returns_none():
     assert score_row_from_month_entry({"totalScore": 100}, 2026, 7, "p1", "chad", SCRAPED_AT) is None
+
+
+def test_daily_tokens_by_date_skips_entries_missing_fields():
+    challenges = [
+        {"date": "2026-09-30T16:56:19.4283785Z", "token": "abc"},
+        {"date": "2026-09-29T16:56:19Z", "token": None},
+        "not a dict",
+    ]
+    assert daily_tokens_by_date(challenges) == {"2026-09-30": "abc"}
+
+
+def make_result(player_id, round_points):
+    guesses = [{"roundScoreInPoints": points, "roundScore": {"amount": str(points)}} for points in round_points]
+    return {"game": {"player": {"id": player_id, "totalTime": 900, "guesses": guesses}}}
+
+
+def test_player_result_finds_own_game_among_friends():
+    payload = {"items": [make_result("friend", [1] * 5), make_result("me", [2] * 5)]}
+    assert player_result(payload, "me")["guesses"][0]["roundScoreInPoints"] == 2
+    assert player_result(payload, "stranger") is None
+    assert player_result({"unexpected": []}, "me") is None
+
+
+def test_round_scores_from_result_real_shape():
+    player = make_result("me", [4845, 5000, 4757, 4466, 4050])["game"]["player"]
+    assert round_scores_from_result(player) == (4845, 5000, 4757, 4466, 4050)
+
+
+def test_round_scores_from_result_falls_back_to_round_score_amount():
+    player = {"guesses": [{"roundScore": {"amount": "5000"}}, {"roundScore": {"amount": "12"}}]}
+    assert round_scores_from_result(player) == (5000, 12)
+
+
+def test_round_scores_from_result_handles_missing_guesses():
+    assert round_scores_from_result({}) is None
+    assert round_scores_from_result({"guesses": [{"nothing": 1}]}) is None

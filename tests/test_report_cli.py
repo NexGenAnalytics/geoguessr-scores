@@ -33,8 +33,21 @@ def test_prints_table_and_writes_plots(tmp_path, capsys):
     assert exit_code == 0
     assert "chad" in out
     assert "pat" in out
-    assert "Saved 4 charts" in out
-    assert len(list(output_dir.glob("*.png"))) == 4
+    assert "Saved 9 charts (weekdays only)" in out
+    assert len(list(output_dir.glob("*.png"))) == 9
+
+
+def test_weekend_games_are_left_out_of_charts_by_default(tmp_path, capsys):
+    csv_path = tmp_path / "scores.csv"
+    sync_rows(csv_path, [make_row("2026-07-18", "p1", "chad", 21000)])  # a Saturday
+
+    output_dir = tmp_path / "plots"
+    assert main(["--csv", str(csv_path), "--output-dir", str(output_dir)]) == 0
+    assert "No weekday games to chart" in capsys.readouterr().out
+    assert not output_dir.exists()
+
+    assert main(["--csv", str(csv_path), "--output-dir", str(output_dir), "--include-weekends"]) == 0
+    assert "Saved 9 charts (all days)" in capsys.readouterr().out
 
 
 def test_no_plots_flag_skips_chart_generation(tmp_path, capsys):

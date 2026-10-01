@@ -5,12 +5,12 @@ import sys
 from pathlib import Path
 from typing import List
 
-from .stats import PlayerStats, compute_player_stats
+from .stats import PlayerStats, compute_player_stats, weekday_rows
 from .store import load_rows
 
 HEADER = (
     f"{'Player':<20}{'Games':>7}{'Avg':>8}{'Median':>8}"
-    f"{'Best':>8}{'Worst':>8}{'Wins':>7}{'Win %':>8}"
+    f"{'Best':>8}{'Worst':>8}{'Wins':>7}{'Win %':>8}{'5ks':>6}{'5k %':>7}"
 )
 
 
@@ -35,7 +35,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Only print the statistics table; skip generating charts",
     )
+    parser.add_argument(
+        "--include-weekends",
+        action="store_true",
+        help="Include Saturday and Sunday challenges in the charts (excluded by default)",
+    )
     return parser
+
+
+def _five_k_percent(stat: PlayerStats) -> str:
+    return f"{stat.five_k_rate * 100:.0f}%" if stat.rounds_tracked else "-"
 
 
 def format_stats_table(stats: List[PlayerStats]) -> str:
@@ -44,7 +53,7 @@ def format_stats_table(stats: List[PlayerStats]) -> str:
         lines.append(
             f"{s.player_name:<20}{s.games_played:>7}{s.average_score:>8.0f}"
             f"{s.median_score:>8.0f}{s.best_score:>8}{s.worst_score:>8}"
-            f"{s.wins:>7}{s.win_rate * 100:>7.0f}%"
+            f"{s.wins:>7}{s.win_rate * 100:>7.0f}%{s.five_ks:>6}{_five_k_percent(s):>7}"
         )
     return "\n".join(lines)
 
@@ -63,8 +72,13 @@ def main(argv: List[str] = None) -> int:
     if not args.no_plots:
         from .plots import generate_all_plots  # deferred: matplotlib import is slow
 
-        written = generate_all_plots(rows, stats, args.output_dir)
-        print(f"\nSaved {len(written)} charts to {args.output_dir}/")
+        plot_rows = rows if args.include_weekends else weekday_rows(rows)
+        if not plot_rows:
+            print("\nNo weekday games to chart. Use --include-weekends to chart weekends.")
+            return 0
+        written = generate_all_plots(plot_rows, compute_player_stats(plot_rows), args.output_dir)
+        scope = "all days" if args.include_weekends else "weekdays only"
+        print(f"\nSaved {len(written)} charts ({scope}) to {args.output_dir}/")
 
     return 0
 

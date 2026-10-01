@@ -38,7 +38,7 @@ Works with free GeoGuessr accounts. No premium needed.
 python scrape.py
 ```
 
-That fetches your scores for the last 7 days and adds or updates rows in
+That fetches your scores for the last 100 days and adds or updates rows in
 `scores.csv`. Days you didn't finish (including partial or abandoned
 attempts) are skipped, same as GeoGuessr's own history page.
 
@@ -70,11 +70,14 @@ python scrape.py --csv path/to/scores.csv --env-file path/to/.env
 | total_time_seconds | Total time across all five rounds, if available |
 | total_distance | Total guess distance as reported by GeoGuessr, if available |
 | scraped_at | When this row was first captured or last changed |
+| round_scores | The five round scores, separated by `;`, if available |
 
 Rows are sorted newest date first, then highest score. GeoGuessr's own
-score-history endpoint only reports the score itself for older days, not
-time or distance, so those two columns are blank for anything pulled in
-via `--from`/`--to`. Recent days may have them filled in.
+score-history endpoint only reports the score itself, so the token, time,
+distance, and round score columns can only be filled in for roughly the
+last 7 days (today plus the six before it). Once a row has round scores,
+later scrapes keep them. Run the scraper at least once a week so your
+5k stats don't have gaps.
 
 ## Charts and statistics
 
@@ -82,7 +85,9 @@ via `--from`/`--to`. Recent days may have them filled in.
 python report.py
 ```
 
-Prints a per-player stats table and saves four charts as PNGs into `plots/`:
+Prints a per-player stats table and saves nine charts as PNGs into `plots/`.
+Charts leave out Saturday and Sunday challenges unless you pass
+`--include-weekends`; the stats table always covers every day.
 
 - `score_trends.png` — everyone's score over time
 - `score_distribution.png` — box plot of each player's score spread
@@ -90,13 +95,23 @@ Prints a per-player stats table and saves four charts as PNGs into `plots/`:
   score variability
 - `wins.png` — how many days each player had the top score (ties count
   for everyone tied)
+- `rolling_average.png` — each player's 5-game rolling average, a smoother
+  view of the trend
+- `day_of_week.png` — average score per player for each day of the week
+- `head_to_head.png` — how often each player beat each other player on days
+  they both played
+- `five_ks.png` — perfect 5000-point rounds per player, with the share of
+  tracked rounds that were 5ks
+- `round_averages.png` — average score for rounds 1 through 5 per player
 
 The stats table includes games played, average/median/best/worst score,
-and win count/rate. Options:
+win count/rate, and 5k count/rate (5k stats only count days with round
+scores). Options:
 
 ```
 python report.py --csv path/to/scores.csv --output-dir path/to/plots
 python report.py --no-plots      # just print the table, skip the charts
+python report.py --include-weekends
 ```
 
 ## Sharing one CSV as a team

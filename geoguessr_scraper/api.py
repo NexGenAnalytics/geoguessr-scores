@@ -10,6 +10,7 @@ RETRY_STATUSES = {429, 500, 502, 503, 504}
 MAX_ATTEMPTS = 4
 BACKOFF_SECONDS = 2.0
 REQUEST_TIMEOUT = 20
+RESULTS_PAGE_SIZE = 26  # the largest page GeoGuessr's own results page asks for
 
 
 class AuthError(Exception):
@@ -67,3 +68,14 @@ class GeoGuessrClient:
         the /daily-challenges/{date} history pages.
         """
         return self._get(f"challenges/daily-challenges/me/month?year={year}&month={month}")
+
+    def get_today_daily_challenge(self) -> object:
+        return self._get("challenges/daily-challenges/today")
+
+    def get_previous_daily_challenges(self) -> object:
+        """The last several days' challenges (about six), each with its token."""
+        return self._get("challenges/daily-challenges/previous")
+
+    def get_challenge_results(self, token: str) -> object:
+        """Your own and your friends' finished games for one challenge, round by round."""
+        return self._get(f"results/highscores/{token}?friends=true&limit={RESULTS_PAGE_SIZE}")

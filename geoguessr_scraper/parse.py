@@ -9,7 +9,7 @@ in case GeoGuessr changes the field names.
 """
 
 from datetime import date as date_cls
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from .models import ScoreRow
 
@@ -90,3 +90,34 @@ def score_row_from_month_entry(
         total_distance=_first_present(entry, DISTANCE_KEYS),
         scraped_at=scraped_at,
     )
+
+
+def daily_tokens_by_date(challenges: List[object]) -> Dict[str, str]:
+    """Map YYYY-MM-DD to challenge token from today/previous daily-challenge responses."""
+    tokens: Dict[str, str] = {}
+    for challenge in challenges:
+        if isinstance(challenge, dict) and challenge.get("date") and challenge.get("token"):
+            tokens[str(challenge["date"])[:10]] = str(challenge["token"])
+    return tokens
+
+
+def player_result(payload: object, player_id: str) -> Optional[dict]:
+    """The given player's finished game from a results/highscores response.
+
+    Verified against the live API (2026-10): {"items": [{"game": {"player": {"id",
+    "totalTime", "totalDistanceInMeters", "guesses": [{"roundScoreInPoints"}, ...]}}}]}.
+    """
+    items = payload.get("items") if isinstance(payload, dict) else None
+    for item in items or []:
+        player = (item.get("game") or {}).get("player") if isinstance(item, dict) else None
+        if isinstance(player, dict) and str(player.get("id")) == player_id:
+            return player
+    return None
+
+
+def round_scores_from_result(player: dict) -> Optional[Tuple[int, ...]]:
+    guesses = player.get("guesses")
+    if not isinstance(guesses, list) or not guesses:
+        return None
+    scores = [_score_amount(g.get("roundScoreInPoints", g.get("roundScore"))) for g in guesses]
+    return None if None in scores else tuple(scores)

@@ -1,8 +1,10 @@
+from dataclasses import replace
+
 from geoguessr_scraper.models import ScoreRow
 from geoguessr_scraper.store import load_rows, sync_rows, upsert_rows, write_rows
 
 
-def make_row(date="2026-07-15", player_id="p1", name="chad", score=20000, scraped="t1"):
+def make_row(date="2026-07-15", player_id="p1", name="chad", score=20000, scraped="t1", rounds=None):
     return ScoreRow(
         challenge_date=date,
         challenge_token="tok",
@@ -12,6 +14,7 @@ def make_row(date="2026-07-15", player_id="p1", name="chad", score=20000, scrape
         total_time_seconds=300,
         total_distance=12.5,
         scraped_at=scraped,
+        round_scores=rounds,
     )
 
 
@@ -23,6 +26,35 @@ def test_sync_creates_csv_and_roundtrips(tmp_path):
     loaded = list(load_rows(path).values())
     assert len(loaded) == 1
     assert loaded[0] == make_row()
+
+
+def test_round_scores_roundtrip(tmp_path):
+    path = tmp_path / "scores.csv"
+    sync_rows(path, [make_row(rounds=(5000, 4000, 3000, 2000, 1000))])
+    assert list(load_rows(path).values())[0].round_scores == (5000, 4000, 3000, 2000, 1000)
+
+
+def test_round_scores_arriving_later_count_as_an_update():
+    rows = {make_row().key: make_row()}
+    added, updated = upsert_rows(rows, [make_row(rounds=(5000,) * 4 + (0,))])
+    assert (added, updated) == (0, 1)
+
+
+def test_rescrape_without_round_data_keeps_existing_details():
+    original = make_row(rounds=(5000,) * 4 + (0,))
+    rows = {original.key: original}
+    month_only = replace(original, challenge_token="", total_time_seconds=None, total_distance=None, round_scores=None)
+    added, updated = upsert_rows(rows, [replace(month_only, player_name="chadwick")])
+    assert (added, updated) == (0, 1)
+    assert rows[original.key].player_name == "chadwick"
+    assert rows[original.key].round_scores == original.round_scores
+    assert rows[original.key].total_time_seconds == 300
+
+
+def test_rescrape_with_new_score_drops_stale_details():
+    rows = {make_row().key: make_row(rounds=(5000,) * 4 + (0,))}
+    upsert_rows(rows, [make_row(score=21000)])
+    assert rows[make_row().key].round_scores is None
 
 
 def test_rerun_is_idempotent(tmp_path):

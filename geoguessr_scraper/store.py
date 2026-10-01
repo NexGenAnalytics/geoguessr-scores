@@ -5,8 +5,9 @@ merging runs from different coworkers, never produces duplicates.
 """
 
 import csv
+from dataclasses import replace
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from .models import ScoreRow
 
@@ -19,7 +20,20 @@ COLUMNS = [
     "total_time_seconds",
     "total_distance",
     "scraped_at",
+    "round_scores",
 ]
+DETAIL_FIELDS = ("challenge_token", "total_time_seconds", "total_distance", "round_scores")
+ROUND_SEPARATOR = ";"
+
+
+def format_round_scores(scores: Optional[Tuple[int, ...]]) -> str:
+    return ROUND_SEPARATOR.join(str(s) for s in scores) if scores else ""
+
+
+def parse_round_scores(value: Optional[str]) -> Optional[Tuple[int, ...]]:
+    if not value:
+        return None
+    return tuple(int(s) for s in value.split(ROUND_SEPARATOR))
 
 
 def _row_from_record(record: Dict[str, str]) -> ScoreRow:
@@ -38,6 +52,7 @@ def _row_from_record(record: Dict[str, str]) -> ScoreRow:
         total_time_seconds=opt_int(record.get("total_time_seconds", "")),
         total_distance=opt_float(record.get("total_distance", "")),
         scraped_at=record.get("scraped_at", ""),
+        round_scores=parse_round_scores(record.get("round_scores")),
     )
 
 
@@ -56,6 +71,18 @@ def load_rows(path: Path) -> Dict[Tuple[str, str], ScoreRow]:
     return rows
 
 
+def _with_known_details(new: ScoreRow, current: ScoreRow) -> ScoreRow:
+    """Keep details the old row had but the new scrape couldn't see (e.g. round scores)."""
+    if new.total_score != current.total_score:
+        return new
+    kept = {f: getattr(current, f) for f in DETAIL_FIELDS if not getattr(new, f) and getattr(current, f)}
+    return replace(new, **kept) if kept else new
+
+
+def _comparable(row: ScoreRow) -> tuple:
+    return (row.total_score, row.player_name) + tuple(getattr(row, f) for f in DETAIL_FIELDS)
+
+
 def upsert_rows(
     existing: Dict[Tuple[str, str], ScoreRow], new_rows: Iterable[ScoreRow]
 ) -> Tuple[int, int]:
@@ -65,10 +92,11 @@ def upsert_rows(
         current = existing.get(row.key)
         if current is None:
             added += 1
-        elif (current.total_score, current.player_name) != (row.total_score, row.player_name):
-            updated += 1
         else:
-            continue  # unchanged; keep original scraped_at
+            row = _with_known_details(row, current)
+            if _comparable(current) == _comparable(row):
+                continue  # unchanged; keep original scraped_at
+            updated += 1
         existing[row.key] = row
     return added, updated
 
@@ -82,7 +110,9 @@ def write_rows(path: Path, rows: Dict[Tuple[str, str], ScoreRow]) -> None:
         writer = csv.writer(handle)
         writer.writerow(COLUMNS)
         for row in ordered:
-            writer.writerow([getattr(row, column) for column in COLUMNS])
+            record = {column: getattr(row, column) for column in COLUMNS}
+            record["round_scores"] = format_round_scores(row.round_scores)
+            writer.writerow([record[column] for column in COLUMNS])
 
 
 def sync_rows(path: Path, new_rows: List[ScoreRow]) -> Tuple[int, int, int]:
