@@ -1,0 +1,887 @@
+/* Geobestr Stats: a night-atlas theme. Ink-blue chart paper, contour lines, glowing map pins. */
+
+:root {
+  --surface: #0b1220;
+  --panel: #101a2c;
+  --panel-2: #142038;
+  --line: #22304a;
+  --line-soft: rgba(140, 170, 220, 0.12);
+  --text: #e8ecf4;
+  --muted: #7d8aa5;
+  --brass: #f5c04a;
+  --coral: #ff7a59;
+  --display: "Bricolage Grotesque", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --radius: 14px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 700px at 85% -10%, rgba(61, 214, 198, 0.08), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(255, 122, 89, 0.07), transparent 60%),
+    var(--surface);
+  color: var(--text);
+  font-family: var(--display);
+  overflow-x: hidden;
+}
+
+/* Graticule grid layered over the procedural contour lines. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+  background-size: 96px 96px;
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 85%);
+  z-index: 0;
+}
+
+.topo {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.16;
+  pointer-events: none;
+  z-index: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+code,
+kbd {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+
+/* ---------- Masthead ---------- */
+
+.masthead {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 28px 32px 18px;
+}
+
+.compass {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  color: var(--brass);
+  font-family: var(--mono);
+  filter: drop-shadow(0 0 12px rgba(245, 192, 74, 0.35));
+}
+
+.compass .needle {
+  transform-origin: 50px 50px;
+  animation: wander 9s ease-in-out infinite;
+}
+
+@keyframes wander {
+  0%, 100% { transform: rotate(-14deg); }
+  35% { transform: rotate(22deg); }
+  60% { transform: rotate(-4deg); }
+  80% { transform: rotate(9deg); }
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4.6vw, 3.4rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  background: linear-gradient(100deg, #fff 10%, #c9d6f2 55%, var(--brass) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* "Stats" as a passport entry stamp. */
+.stamp-word {
+  display: inline-block;
+  margin-left: 0.15em;
+  padding: 0.05em 0.3em 0.1em;
+  font-size: 0.55em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--coral);
+  -webkit-text-fill-color: var(--coral);
+  border: 3px double var(--coral);
+  border-radius: 8px;
+  transform: rotate(-7deg) translateY(-0.2em);
+  opacity: 0.92;
+  vertical-align: middle;
+  text-shadow: 0 0 18px rgba(255, 122, 89, 0.45);
+}
+
+.tagline {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
+.tagline span {
+  color: var(--text);
+}
+
+.coords {
+  margin-left: auto;
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--brass);
+  padding: 6px 10px;
+  border: 1px dashed rgba(245, 192, 74, 0.4);
+  border-radius: 8px;
+  white-space: pre;
+  min-width: 17ch;
+  text-align: center;
+}
+
+/* ---------- Layout ---------- */
+
+.shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  gap: 24px;
+  padding: 0 32px 32px;
+  align-items: start;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- Sidebar: the map legend ---------- */
+
+.legend-nav {
+  position: sticky;
+  top: 16px;
+  padding: 16px 10px;
+  background: rgba(16, 26, 44, 0.72);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.nav-group + .nav-group {
+  margin-top: 14px;
+}
+
+.nav-heading {
+  padding: 0 10px 6px;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateX(2px);
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 1px;
+}
+
+.nav-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-size: 0.95rem;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+
+.nav-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.nav-text b {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.nav-text small {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+/* "You are here" pin on the active view. */
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(245, 192, 74, 0.14), rgba(245, 192, 74, 0.02));
+}
+
+.nav-item.active .nav-icon {
+  border-color: var(--brass);
+  color: var(--surface);
+  background: var(--brass);
+  box-shadow: 0 0 0 4px rgba(245, 192, 74, 0.15), 0 0 18px rgba(245, 192, 74, 0.5);
+}
+
+.nav-item.active::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brass);
+  animation: ping 1.8s ease-out infinite;
+}
+
+@keyframes ping {
+  0% { box-shadow: 0 0 0 0 rgba(245, 192, 74, 0.7); }
+  100% { box-shadow: 0 0 0 10px rgba(245, 192, 74, 0); }
+}
+
+/* ---------- Filters ---------- */
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 20px;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.seg {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.seg:hover {
+  color: var(--text);
+}
+
+.seg.on {
+  background: var(--brass);
+  color: var(--surface);
+  font-weight: 600;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  position: absolute;
+  opacity: 0;
+}
+
+.track {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border-radius: 99px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  transition: background 0.2s;
+}
+
+.track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle input:checked + .track {
+  background: rgba(61, 214, 198, 0.25);
+  border-color: #3dd6c6;
+}
+
+.toggle input:checked + .track::after {
+  transform: translateX(14px);
+  background: #3dd6c6;
+}
+
+.toggle input:focus-visible + .track {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+.scope {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 10px;
+  border-radius: 99px;
+  border: 1px solid color-mix(in srgb, var(--pin) 55%, transparent);
+  background: color-mix(in srgb, var(--pin) 12%, transparent);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chip:hover {
+  transform: translateY(-1px);
+}
+
+.chip.off {
+  border-color: var(--line);
+  background: none;
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--muted);
+}
+
+.chip.off .pin {
+  background: none;
+  box-shadow: inset 0 0 0 2px var(--muted);
+}
+
+/* Map-pin dot shared by chips, tables, and stamps. */
+.pin {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--pin);
+  box-shadow: 0 0 10px var(--pin);
+}
+
+/* ---------- KPI tiles ---------- */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.kpi {
+  position: relative;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--pin, var(--line)) 14%, var(--panel)), var(--panel) 60%);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.kpi::after {
+  content: "";
+  position: absolute;
+  right: -30px;
+  top: -30px;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--pin, var(--line)) 50%, transparent);
+  box-shadow: 0 0 0 12px transparent, 0 0 0 13px color-mix(in srgb, var(--pin, var(--line)) 25%, transparent);
+}
+
+.kpi-label {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kpi-value {
+  margin: 4px 0 6px;
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.kpi-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.kpi-note {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* ---------- The canvas: a framed map sheet ---------- */
+
+.canvas {
+  position: relative;
+  padding: 22px 24px 18px;
+  border-radius: 6px;
+  background: rgba(16, 26, 44, 0.82);
+  backdrop-filter: blur(8px);
+  /* Double "neatline" border like a printed map. */
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 0 0 6px var(--surface),
+    0 0 0 7px rgba(245, 192, 74, 0.35),
+    0 30px 60px rgba(0, 0, 0, 0.45);
+  margin: 7px;
+  outline: none;
+}
+
+/* Corner registration marks. */
+.canvas::before,
+.canvas::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--brass);
+  pointer-events: none;
+}
+
+.canvas::before {
+  top: -10px;
+  left: -10px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.canvas::after {
+  bottom: -10px;
+  right: -10px;
+  border-left: 0;
+  border-top: 0;
+}
+
+.canvas-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+
+.canvas-head h2 {
+  margin: 4px 0 6px;
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.canvas-head p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.knobs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.knob {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.knob output {
+  min-width: 11ch;
+  color: var(--text);
+}
+
+input[type="range"] {
+  width: 150px;
+  accent-color: var(--brass);
+}
+
+.chart {
+  width: 100%;
+  height: clamp(420px, 62vh, 680px);
+}
+
+.panel {
+  min-height: 300px;
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  min-height: 360px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  animation: wander 6s ease-in-out infinite;
+}
+
+/* ---------- Leaderboard ---------- */
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.leaderboard {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 6px;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.leaderboard th {
+  padding: 0 8px 4px;
+  font-size: 0.68rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.leaderboard th button {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.leaderboard th button:hover,
+.leaderboard th.sorted {
+  color: var(--brass);
+}
+
+.leaderboard td {
+  padding: 10px 8px;
+  background: var(--panel-2);
+  white-space: nowrap;
+}
+
+.leaderboard tbody tr {
+  transition: transform 0.15s;
+}
+
+.leaderboard tbody tr:hover {
+  transform: translateX(3px);
+}
+
+.leaderboard td:first-child {
+  border-radius: 10px 0 0 10px;
+  box-shadow: inset 3px 0 0 var(--pin);
+}
+
+.leaderboard td:last-child {
+  border-radius: 0 10px 10px 0;
+}
+
+.leaderboard .num {
+  text-align: right;
+}
+
+.leaderboard td.sorted {
+  color: var(--brass);
+  font-weight: 600;
+}
+
+.leaderboard small {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.rank {
+  width: 44px;
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.spark {
+  display: block;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--pin) 60%, transparent));
+}
+
+/* ---------- Hall of Fame: postage stamps ---------- */
+
+.stamps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 26px 22px;
+  padding: 10px 6px 16px;
+}
+
+.stamp {
+  padding: 8px;
+  background: #e9e2cf;
+  transform: rotate(var(--tilt));
+  transition: transform 0.25s;
+  /* Perforated edge: half-circle bites along the padding band, solid content box. */
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    radial-gradient(circle 4px, transparent 96%, #000 100%) -6px -6px / 12px 12px repeat;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5));
+}
+
+.stamp:hover {
+  transform: rotate(0deg) scale(1.04);
+}
+
+.stamp-inner {
+  height: 100%;
+  padding: 14px 14px 12px;
+  border: 2px solid color-mix(in srgb, var(--pin) 70%, #000);
+  background:
+    radial-gradient(circle at 85% 15%, color-mix(in srgb, var(--pin) 35%, transparent), transparent 55%),
+    linear-gradient(165deg, #182640, #0d1628);
+  color: var(--text);
+}
+
+.stamp-title {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pin);
+}
+
+.stamp-value {
+  margin: 6px 0 2px;
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.stamp-value small {
+  font-size: 0.45em;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stamp-blurb {
+  min-height: 2.6em;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.stamp-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-weight: 600;
+}
+
+.stamp-date {
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+/* ---------- Footer & loading ---------- */
+
+.foot {
+  padding: 8px 4px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+body.loading .kpis,
+body.loading .filters {
+  opacity: 0;
+}
+
+/* ---------- Small screens: the legend becomes a scrolling strip ---------- */
+
+@media (max-width: 960px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .masthead {
+    padding: 20px 16px 12px;
+  }
+
+  .coords {
+    display: none;
+  }
+
+  .compass {
+    width: 46px;
+    height: 46px;
+  }
+
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0 16px 24px;
+    gap: 16px;
+  }
+
+  .legend-nav {
+    position: static;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 8px;
+    scrollbar-width: none;
+  }
+
+  .nav-group {
+    display: contents;
+  }
+
+  .nav-heading,
+  .nav-text small,
+  .nav-item.active::after {
+    display: none;
+  }
+
+  .nav-item {
+    flex: none;
+    width: auto;
+  }
+
+  .canvas {
+    padding: 16px 14px;
+  }
+
+  .scope {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .chart {
+    height: 440px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

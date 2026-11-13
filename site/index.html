@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Geobestr Stats</title>
+    <meta name="description" content="Daily GeoGuessr challenge stats for the team." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;600&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script type="module" src="js/app.js"></script>
+  </head>
+  <body class="loading">
+    <svg class="topo" aria-hidden="true">
+      <filter id="contours" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.0022" numOctaves="3" seed="11" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1.4 0 0 0 -0.2" />
+        <feComponentTransfer result="bands">
+          <feFuncA type="discrete" tableValues="0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1" />
+        </feComponentTransfer>
+        <feMorphology in="bands" operator="erode" radius="1" result="inner" />
+        <feComposite in="bands" in2="inner" operator="out" result="lines" />
+        <feFlood flood-color="#5f86c9" />
+        <feComposite in2="lines" operator="in" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#contours)" />
+    </svg>
+
+    <header class="masthead">
+      <svg class="compass" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 4" />
+        <circle cx="50" cy="50" r="36" fill="none" stroke="currentColor" stroke-width="1" opacity=".5" />
+        <g class="needle">
+          <polygon points="50,8 57,50 50,44 43,50" fill="#FF7A59" />
+          <polygon points="50,92 57,50 50,56 43,50" fill="#E8ECF4" opacity=".85" />
+          <circle cx="50" cy="50" r="4" fill="#0B1220" stroke="currentColor" stroke-width="2" />
+        </g>
+        <text x="50" y="7" text-anchor="middle" font-size="9" fill="currentColor">N</text>
+      </svg>
+      <div class="title-block">
+        <h1>Geobestr <span class="stamp-word">Stats</span></h1>
+        <p class="tagline">
+          Daily Challenge field notes · <span id="explorers">–</span> explorers · last dispatch <span id="updated">–</span>
+        </p>
+      </div>
+      <div class="coords" id="coords" aria-hidden="true">0.00°N 0.00°E</div>
+    </header>
+
+    <div class="shell">
+      <nav id="nav" class="legend-nav" aria-label="Charts"></nav>
+
+      <main>
+        <section class="filters" aria-label="Filters">
+          <div class="filter-row">
+            <div class="segmented" id="ranges" role="group" aria-label="Date range"></div>
+            <label class="toggle" title="Saturday and Sunday challenges">
+              <input type="checkbox" id="weekends" /><span class="track"></span>Weekends
+            </label>
+            <label class="toggle" title="Only count days every selected player played">
+              <input type="checkbox" id="fair" /><span class="track"></span>Fair fight
+            </label>
+            <span class="scope" id="scope"></span>
+          </div>
+          <div class="chips" id="players" role="group" aria-label="Players"></div>
+        </section>
+
+        <section class="kpis" id="kpis" aria-label="Highlights"></section>
+
+        <section class="canvas" id="canvas" tabindex="-1" aria-live="polite">
+          <header class="canvas-head">
+            <div>
+              <div class="eyebrow"><span id="view-icon"></span> <span id="view-plain"></span></div>
+              <h2 id="view-title">Unfolding the map…</h2>
+              <p id="view-blurb"></p>
+            </div>
+            <div class="knobs" id="knobs"></div>
+          </header>
+          <div id="chart" class="chart" hidden></div>
+          <div id="panel" class="panel"></div>
+        </section>
+
+        <footer class="foot">
+          Push a fresh <code>scores.csv</code> and this map redraws itself. · Press <kbd>j</kbd>/<kbd>k</kbd> to flip charts.
+        </footer>
+      </main>
+    </div>
+  </body>
+</html>

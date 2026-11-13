@@ -114,6 +114,33 @@ python report.py --no-plots      # just print the table, skip the charts
 python report.py --include-weekends
 ```
 
+## Geobestr Stats dashboard
+
+`site/` is a static, interactive dashboard that reads `scores.csv` straight
+in the browser, so there's no build step. Every push to `main` runs
+`.github/workflows/pages.yml`, which tests the stats code and publishes
+`site/` plus the latest `scores.csv` to GitHub Pages. Scrape, commit
+`scores.csv`, push, and the dashboard updates a minute later.
+
+One-time setup: in the repo's **Settings > Pages**, set **Source** to
+**GitHub Actions**.
+
+The sidebar switches the main chart: standings, a Hall of Fame of records,
+score trails, Elo power rankings, a calendar of daily winners, winning
+margins, head-to-head, score spread, weekday averages, per-round stats, and
+a round score histogram. Above the chart you can filter by date range,
+toggle weekends and players, and turn on **Fair fight** (only days every
+selected player played). Some charts have their own knobs, such as
+smoothing or Elo volatility. Wins only count days with at least two
+players, so a solo day isn't a win.
+
+To preview locally, serve the repo root and open `/site/`:
+
+```
+python -m http.server 8000
+# then visit http://localhost:8000/site/
+```
+
 ## Sharing one CSV as a team
 
 Each run only adds the account that ran it, so the team's data comes from
@@ -139,4 +166,10 @@ Run the tests with:
 ```
 pip install pytest
 python -m pytest
+```
+
+The dashboard's stats tests use Node's built-in test runner (Node 22+):
+
+```
+npm test
 ```
