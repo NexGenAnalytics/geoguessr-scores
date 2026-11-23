@@ -21,6 +21,24 @@ TOKEN_KEYS = ("token", "challengeToken")
 ID_KEYS = ("id", "userId")
 NAME_KEYS = ("nick", "name")
 
+# ISO 3166 country codes by GeoGuessr continent code, for rounds that predate region data.
+_CONTINENT_COUNTRIES = {
+    "af": "dz ao bj bw bf bi cv cm cf td km cg cd ci dj eg gq er sz et ga gm gh gn gw ke ls lr ly mg mw ml "
+    "mr mu yt ma mz na ne ng re rw sh st sn sc sl so za ss sd tz tg tn ug eh zm zw",
+    "as": "af am az bh bd bt bn kh cn cy ge hk in id ir iq il jo jp kz kw kg la lb mo my mv mn mm np kp om "
+    "pk ps ph qa sa sg kr lk sy tw tj th tl tr tm ae uz vn ye io cc cx",
+    "eu": "ax al ad at by be ba bg hr cz dk ee fo fi fr de gi gr gg hu is ie im it je xk lv li lt lu mt md "
+    "mc me nl mk no pl pt ro ru sm rs sk si es sj se ch ua gb va",
+    "na": "ai ag aw bs bb bz bm bq vg ca ky cr cu cw dm do sv gl gd gp gt ht hn jm mq mx ms ni pa pr bl kn "
+    "lc mf pm vc sx tt tc us vi um",
+    "sa": "ar bo br cl co ec fk gf gy py pe sr uy ve gs",
+    "oc": "as au ck fj pf gu ki mh fm nr nc nz nu nf mp pw pg pn ws sb tk to tv vu wf",
+    "an": "aq tf hm bv",
+}
+COUNTRY_CONTINENTS = {
+    country: continent for continent, countries in _CONTINENT_COUNTRIES.items() for country in countries.split()
+}
+
 
 def _first_present(source: dict, keys: Tuple[str, ...]):
     for key in keys:
@@ -111,6 +129,24 @@ def finished_player(game: object) -> Optional[dict]:
         return None
     player = game.get("player")
     return player if isinstance(player, dict) else None
+
+
+def _round_continent(round_info: object) -> Optional[str]:
+    """rounds[].region.continent when present (2026-10+), else mapped from the country code."""
+    if not isinstance(round_info, dict):
+        return None
+    continent = (round_info.get("region") or {}).get("continent")
+    country = str(round_info.get("streakLocationCode") or "").lower()
+    return str(continent) if continent else COUNTRY_CONTINENTS.get(country)
+
+
+def round_continents_from_game(game: object) -> Optional[Tuple[str, ...]]:
+    """Each round's continent code (e.g. "sa") from a game's rounds."""
+    rounds = game.get("rounds") if isinstance(game, dict) else None
+    if not isinstance(rounds, list) or not rounds:
+        return None
+    codes = [_round_continent(r) for r in rounds]
+    return None if None in codes else tuple(codes)
 
 
 def round_scores_from_result(player: dict) -> Optional[Tuple[int, ...]]:

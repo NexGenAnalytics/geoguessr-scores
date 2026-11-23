@@ -21,8 +21,9 @@ COLUMNS = [
     "total_distance",
     "scraped_at",
     "round_scores",
+    "round_continents",
 ]
-DETAIL_FIELDS = ("challenge_token", "total_time_seconds", "total_distance", "round_scores")
+DETAIL_FIELDS = ("challenge_token", "total_time_seconds", "total_distance", "round_scores", "round_continents")
 ROUND_SEPARATOR = ";"
 
 
@@ -34,6 +35,10 @@ def parse_round_scores(value: Optional[str]) -> Optional[Tuple[int, ...]]:
     if not value:
         return None
     return tuple(int(s) for s in value.split(ROUND_SEPARATOR))
+
+
+def parse_round_continents(value: Optional[str]) -> Optional[Tuple[str, ...]]:
+    return tuple(value.split(ROUND_SEPARATOR)) if value else None
 
 
 def _row_from_record(record: Dict[str, str]) -> ScoreRow:
@@ -53,6 +58,7 @@ def _row_from_record(record: Dict[str, str]) -> ScoreRow:
         total_distance=opt_float(record.get("total_distance", "")),
         scraped_at=record.get("scraped_at", ""),
         round_scores=parse_round_scores(record.get("round_scores")),
+        round_continents=parse_round_continents(record.get("round_continents")),
     )
 
 
@@ -112,6 +118,7 @@ def write_rows(path: Path, rows: Dict[Tuple[str, str], ScoreRow]) -> None:
         for row in ordered:
             record = {column: getattr(row, column) for column in COLUMNS}
             record["round_scores"] = format_round_scores(row.round_scores)
+            record["round_continents"] = ROUND_SEPARATOR.join(row.round_continents or ())
             writer.writerow([record[column] for column in COLUMNS])
 
 

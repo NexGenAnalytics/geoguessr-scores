@@ -34,6 +34,13 @@ def test_round_scores_roundtrip(tmp_path):
     assert list(load_rows(path).values())[0].round_scores == (5000, 4000, 3000, 2000, 1000)
 
 
+def test_round_continents_roundtrip(tmp_path):
+    path = tmp_path / "scores.csv"
+    row = replace(make_row(rounds=(1,) * 5), round_continents=("af", "eu", "sa", "as", "oc"))
+    sync_rows(path, [row])
+    assert list(load_rows(path).values())[0].round_continents == ("af", "eu", "sa", "as", "oc")
+
+
 def test_round_scores_arriving_later_count_as_an_update():
     rows = {make_row().key: make_row()}
     added, updated = upsert_rows(rows, [make_row(rounds=(5000,) * 4 + (0,))])

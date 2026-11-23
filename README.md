@@ -71,10 +71,11 @@ python scrape.py --csv path/to/scores.csv --env-file path/to/.env
 | total_distance | Total guess distance as reported by GeoGuessr, if available |
 | scraped_at | When this row was first captured or last changed |
 | round_scores | The five round scores, separated by `;`, if available |
+| round_continents | Each round's continent code (`eu`, `as`, `na`, `sa`, `af`, `oc`), separated by `;`, if available |
 
 Rows are sorted newest date first, then highest score. GeoGuessr's own
 score-history endpoint only reports the score itself, so the token, time,
-distance, and round score columns can only be filled in for roughly the
+distance, round score, and continent columns can only be filled in for roughly the
 last 7 days (today plus the six before it). Once a row has round scores,
 later scrapes keep them. Run the scraper at least once a week so your
 5k stats don't have gaps.
@@ -127,8 +128,8 @@ One-time setup: in the repo's **Settings > Pages**, set **Source** to
 
 The sidebar switches the main chart: standings, a Hall of Fame of records,
 score trails, Elo power rankings, a calendar of daily winners, winning
-margins, head-to-head, score spread, weekday averages, per-round stats, and
-a round score histogram. Above the chart you can filter by date range,
+margins, head-to-head, score spread, weekday averages, per-round stats, a
+per-continent compass rose (Home Turf), and a round score histogram. Above the chart you can filter by date range,
 toggle weekends and players, and turn on **Fair fight** (only days every
 selected player played). Some charts have their own knobs, such as
 smoothing or Elo volatility. Wins only count days with at least two

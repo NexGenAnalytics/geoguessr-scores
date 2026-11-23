@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  byContinent,
   byRound,
   dailyResults,
   eloHistory,
@@ -136,6 +137,21 @@ test("byRound and roundHistogram summarize tracked rounds", () => {
   const bob = roundHistogram(all).get("b");
   assert.equal(bob[0], 40);
   assert.equal(bob.at(-1), 20);
+});
+
+test("toGames shares a day's continents and byContinent groups rounds by them", () => {
+  const all = toGames(
+    parseCsv(
+      "challenge_date,player_id,player_name,total_score,round_scores,round_continents\n" +
+        "2026-11-02,a,Ann,20000,5000;5000;4000;3000;3000,eu;eu;as;sa;as\n" +
+        "2026-11-02,b,Bob,10000,1000;2000;2000;0;5000,\n",
+    ),
+  );
+  assert.deepEqual(all[1].continents, ["eu", "eu", "as", "sa", "as"]);
+  const { continents, values } = byContinent(all);
+  assert.deepEqual(continents.map((c) => c.code), ["eu", "sa", "as"]);
+  assert.deepEqual(values.get("a"), [{ value: 5000, rounds: 2 }, { value: 3000, rounds: 1 }, { value: 3500, rounds: 2 }]);
+  assert.equal(byContinent(all, "fiveKRate").values.get("b")[2].value, 50);
 });
 
 test("records names the standout games", () => {

@@ -127,7 +127,8 @@ def test_scrape_skips_unplayed_days():
 
 def finished_game(round_points, total_time=600):
     guesses = [{"roundScoreInPoints": points} for points in round_points]
-    return {"state": "finished", "player": {"id": "p1", "totalTime": total_time, "guesses": guesses}}
+    rounds = [{"region": {"continent": "eu"}} for _ in round_points]
+    return {"state": "finished", "rounds": rounds, "player": {"id": "p1", "totalTime": total_time, "guesses": guesses}}
 
 
 def test_scrape_adds_round_details_from_own_game():
@@ -145,6 +146,7 @@ def test_scrape_adds_round_details_from_own_game():
     assert rows["2026-07-16"].round_scores == (5000, 4000, 4000, 4000, 4000)
     assert rows["2026-07-16"].challenge_token == "today"
     assert rows["2026-07-16"].total_time_seconds == 600
+    assert rows["2026-07-16"].round_continents == ("eu",) * 5
     assert rows["2026-07-15"].round_scores == (1,) * 5
 
 

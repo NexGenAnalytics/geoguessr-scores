@@ -3,6 +3,7 @@ from geoguessr_scraper.parse import (
     finished_player,
     iter_month_entries,
     profile_identity,
+    round_continents_from_game,
     round_scores_from_result,
     score_row_from_month_entry,
 )
@@ -104,6 +105,22 @@ def test_finished_player_rejects_unfinished_or_malformed_games():
     assert finished_player(make_game([5000] * 3, state="started")) is None
     assert finished_player({"state": "finished", "player": None}) is None
     assert finished_player("not json") is None
+
+
+def test_round_continents_from_game_real_shape():
+    rounds = [{"region": {"country": "gh", "continent": "af"}}, {"region": {"country": "fi", "continent": "eu"}}]
+    assert round_continents_from_game({"rounds": rounds}) == ("af", "eu")
+
+
+def test_round_continents_from_game_falls_back_to_country_code():
+    rounds = [{"streakLocationCode": "ar"}, {"streakLocationCode": "MY"}]
+    assert round_continents_from_game({"rounds": rounds}) == ("sa", "as")
+
+
+def test_round_continents_from_game_handles_missing_regions():
+    assert round_continents_from_game({}) is None
+    assert round_continents_from_game({"rounds": [{"region": {"continent": "af"}}, {"lat": 1}]}) is None
+    assert round_continents_from_game({"rounds": [{"streakLocationCode": "zz"}]}) is None
 
 
 def test_round_scores_from_result_real_shape():

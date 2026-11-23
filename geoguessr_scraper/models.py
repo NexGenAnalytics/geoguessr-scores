@@ -17,6 +17,7 @@ class ScoreRow:
     total_distance: Optional[float]  # as reported by GeoGuessr; units vary by endpoint
     scraped_at: str  # ISO 8601 UTC
     round_scores: Optional[Tuple[int, ...]] = None  # only available for the last ~7 days
+    round_continents: Optional[Tuple[str, ...]] = None  # GeoGuessr continent codes, e.g. "eu"
 
     @property
     def key(self) -> tuple:

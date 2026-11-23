@@ -16,6 +16,7 @@ from .parse import (
     finished_player,
     iter_month_entries,
     profile_identity,
+    round_continents_from_game,
     round_scores_from_result,
     score_row_from_month_entry,
 )
@@ -81,7 +82,7 @@ def months_between(start: date, end: date) -> List[Tuple[int, int]]:
 
 
 def add_round_details(client: GeoGuessrClient, rows: List[ScoreRow]) -> List[ScoreRow]:
-    """Fill in token, rounds, time, and distance for days GeoGuessr still exposes (~last week)."""
+    """Fill in token, rounds, continents, time, and distance for days GeoGuessr still exposes (~last week)."""
     recent = [client.get_today_daily_challenge()] + list(client.get_previous_daily_challenges() or [])
     tokens = daily_tokens_by_date(recent)
     detailed = []
@@ -91,16 +92,18 @@ def add_round_details(client: GeoGuessrClient, rows: List[ScoreRow]) -> List[Sco
             detailed.append(row)
             continue
         try:
-            result = finished_player(client.get_my_challenge_game(token))
+            game = client.get_my_challenge_game(token)
         except ApiError as exc:
-            result = None
+            game = None
             print(f"  warning: couldn't load your {row.challenge_date} game ({exc}); no round scores")
         time.sleep(REQUEST_DELAY_SECONDS)
+        result = finished_player(game)
         if result:
             row = replace(
                 row,
                 challenge_token=token,
                 round_scores=round_scores_from_result(result),
+                round_continents=round_continents_from_game(game),
                 total_time_seconds=result.get("totalTime"),
                 total_distance=result.get("totalDistanceInMeters"),
             )

@@ -16,6 +16,7 @@ const VIEWS = [
   { id: "terrain", group: "Deep Dives", icon: "⛰", title: "Score Terrain", plain: "Score spread", blurb: "Each dot is a game. Boxes span the middle half of a player's scores, the line is their median.", chart: charts.terrainOption },
   { id: "tides", group: "Deep Dives", icon: "☾", title: "Weekly Tides", plain: "By day of week", blurb: "Average score by weekday. Monday brain fog, or Friday focus?", chart: charts.tidesOption },
   { id: "rounds", group: "Deep Dives", icon: "⑤", title: "Round Report", plain: "Rounds 1 to 5", blurb: "Per-round performance from days with round data. Switch the metric to hunt 5ks or blunders.", chart: charts.roundsOption, knobs: ["metric"] },
+  { id: "compass", group: "Deep Dives", icon: "✵", title: "Home Turf", plain: "By continent", blurb: "Each explorer's compass rose: how they score on every continent. The further a point reaches, the more at home they are there. ★ marks each player's home turf.", chart: charts.compassOption, knobs: ["metric"], needsContinents: true },
   { id: "bullseye", group: "Deep Dives", icon: "◎", title: "Bullseye Board", plain: "Round score spread", blurb: "Where every tracked round landed. The gold bucket is perfect 5000s.", chart: charts.bullseyeOption },
 ];
 
@@ -141,6 +142,7 @@ function renderKnobs(view) {
 function emptyMessage(view, ctx) {
   if (!ctx.games.length) return "No expeditions match these filters. Widen the date range or bring a player back.";
   if (view.needsContest && !ctx.daily.some((d) => d.contested)) return "This one needs at least two explorers on the same day.";
+  if (view.needsContinents && !ctx.games.some((g) => g.rounds && g.continents)) return "No continent data in this range yet. Widen the dates to find some tracked rounds.";
   return null;
 }
 

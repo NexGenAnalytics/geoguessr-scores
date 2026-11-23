@@ -76,10 +76,14 @@ export function parseCsv(text) {
 
 const optionalNumber = (value) => (value === "" || value == null ? null : Number(value));
 
+const fullRoundList = (value, parse = String) => {
+  const items = value ? value.split(";").map(parse) : [];
+  return items.length === ROUNDS_PER_GAME ? items : null;
+};
+
 /** Normalize CSV records into typed games. Distances become kilometers. */
 export function toGames(records) {
-  return records.map((r) => {
-    const rounds = r.round_scores ? r.round_scores.split(";").map(Number) : null;
+  const games = records.map((r) => {
     const meters = optionalNumber(r.total_distance);
     return {
       date: r.challenge_date,
@@ -89,9 +93,14 @@ export function toGames(records) {
       score: Number(r.total_score),
       timeSeconds: optionalNumber(r.total_time_seconds),
       distanceKm: meters == null ? null : meters / 1000,
-      rounds: rounds && rounds.length === ROUNDS_PER_GAME ? rounds : null,
+      rounds: fullRoundList(r.round_scores, Number),
+      continents: fullRoundList(r.round_continents),
     };
   });
+  // Everyone plays the same daily locations, so one row's continents cover the whole day.
+  const continentsByDate = new Map(games.filter((g) => g.continents).map((g) => [g.date, g.continents]));
+  for (const g of games) g.continents ??= continentsByDate.get(g.date) ?? null;
+  return games;
 }
 
 /** Players in order of first appearance, so a new player never repaints existing ones. */
@@ -241,6 +250,39 @@ export function byRound(games, metric = "average") {
     );
   }
   return result;
+}
+
+// GeoGuessr continent codes, ordered to sit roughly where they do on a map around the radar.
+export const CONTINENTS = [
+  { code: "eu", name: "Europe" },
+  { code: "na", name: "North America" },
+  { code: "sa", name: "South America" },
+  { code: "af", name: "Africa" },
+  { code: "oc", name: "Oceania" },
+  { code: "as", name: "Asia" },
+  { code: "an", name: "Antarctica" },
+];
+
+/** Per player, a round metric for each continent visited, plus how many rounds back it. */
+export function byContinent(games, metric = "average") {
+  const tracked = games.filter((g) => g.rounds && g.continents);
+  const visited = new Set(tracked.flatMap((g) => g.continents));
+  const continents = CONTINENTS.filter((c) => visited.has(c.code));
+  const values = new Map();
+  for (const [playerId, playerGames] of groupBy(tracked, (g) => g.playerId)) {
+    const scores = groupBy(
+      playerGames.flatMap((g) => g.rounds.map((score, i) => ({ score, continent: g.continents[i] }))),
+      (r) => r.continent,
+    );
+    values.set(
+      playerId,
+      continents.map(({ code }) => {
+        const rounds = (scores.get(code) ?? []).map((r) => r.score);
+        return { value: rounds.length ? ROUND_METRICS[metric](rounds) : null, rounds: rounds.length };
+      }),
+    );
+  }
+  return { continents, values };
 }
 
 export const ROUND_BUCKETS = [

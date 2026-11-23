@@ -4,6 +4,7 @@ import {
   ROUND_BUCKETS,
   ROUNDS_PER_GAME,
   averageByWeekday,
+  byContinent,
   byRound,
   eloHistory,
   headToHead,
@@ -400,6 +401,79 @@ export function roundsOption(ctx, { metric }) {
   };
 }
 
+// Continents a player has seen fewer rounds of are drawn but can't be home turf or set the scale.
+const MIN_HOME_ROUNDS = 3;
+
+export function compassOption(ctx, { metric }) {
+  const { format } = ROUND_METRIC_LABELS[metric];
+  const { continents, values } = byContinent(ctx.games, metric);
+  const players = ctx.players.filter((p) => values.has(p.id));
+  const better = metric === "blunderRate" ? (a, b) => a < b : (a, b) => a > b;
+  const homeTurf = new Map(
+    players.map((p) => {
+      const cells = values.get(p.id);
+      const best = cells.reduce((top, c, i) => (c.rounds >= MIN_HOME_ROUNDS && (top < 0 || better(c.value, cells[top].value)) ? i : top), -1);
+      return [p.id, continents[best]?.name ?? "uncharted"];
+    }),
+  );
+  const all = [...values.values()].flat().filter((c) => c.rounds >= MIN_HOME_ROUNDS).map((c) => c.value);
+  // Averages bunch up near the top, so start the rings just under the weakest showing.
+  const min = metric === "average" ? Math.max(0, Math.floor((Math.min(...all) - 250) / 500) * 500) : 0;
+  const max = metric === "average" ? 5000 : Math.max(10, Math.ceil(Math.max(...all) / 10) * 10);
+  const nameOf = new Map(players.map((p) => [p.name, p]));
+
+  return {
+    // Styling both segments lets ECharts measure the rich label, so the star doesn't overlap the name.
+    legend: {
+      ...LEGEND,
+      formatter: (name) => `{name|${name}}{home|★ ${homeTurf.get(nameOf.get(name)?.id)}}`,
+      textStyle: {
+        rich: {
+          name: { color: INK.text, fontFamily: FONT_DISPLAY, fontSize: 13 },
+          home: { color: INK.brass, fontFamily: FONT_MONO, fontSize: 11, padding: [0, 0, 0, 8] },
+        },
+      },
+    },
+    tooltip: {
+      trigger: "item",
+      formatter: (p) => {
+        const player = nameOf.get(p.name);
+        const cells = values.get(player.id);
+        return (
+          tipTitle(`${escapeHtml(player.name)} · home turf ${homeTurf.get(player.id)}`) +
+          continents
+            .map((c, i) => tipRow(player.color, `${c.name === homeTurf.get(player.id) ? "★ " : ""}${c.name}`, `${format(cells[i].value)} <small style="color:${INK.muted}">${cells[i].rounds} rds</small>`))
+            .join("")
+        );
+      },
+    },
+    radar: {
+      center: ["50%", "56%"],
+      radius: "68%",
+      splitNumber: 4,
+      shape: "circle",
+      indicator: continents.map((c) => ({ name: c.name, min, max })),
+      axisName: { color: INK.text, fontFamily: FONT_DISPLAY, fontSize: 13, fontWeight: 600 },
+      axisLine: { lineStyle: { color: INK.line } },
+      splitLine: { lineStyle: { color: INK.line, type: [4, 4] } },
+      splitArea: { areaStyle: { color: ["rgba(95,134,201,0.03)", "rgba(95,134,201,0.07)"] } },
+    },
+    series: players.map((p) => ({
+      name: p.name,
+      type: "radar",
+      color: p.color,
+      symbol: "circle",
+      symbolSize: 7,
+      lineStyle: { width: 2, shadowColor: p.color, shadowBlur: 12 },
+      areaStyle: { color: `${p.color}22` },
+      itemStyle: { borderColor: INK.surface, borderWidth: 1.5 },
+      emphasis: { focus: "series", areaStyle: { color: `${p.color}55` }, lineStyle: { width: 3 } },
+      // Thin-sample outliers are pinned to the rim; the tooltip still shows the real value.
+      data: [{ name: p.name, value: values.get(p.id).map((c) => Math.min(Math.max(c.value ?? min, min), max)) }],
+    })),
+  };
+}
+
 export function bullseyeOption(ctx) {
   const histogram = roundHistogram(ctx.games);
   const rounded = new Map([...histogram].map(([id, values]) => [id, values.map((v) => +v.toFixed(1))]));
@@ -413,6 +487,7 @@ export function bullseyeOption(ctx) {
 /** Phone-width tweak: reclaim the right gutter used by end-of-line labels. */
 export function compact(option) {
   for (const s of option.series) if (s.endLabel) s.endLabel = { ...s.endLabel, show: false };
+  if (option.radar) option.radar = { ...option.radar, radius: "58%", axisName: { ...option.radar.axisName, fontSize: 11 } };
   if (option.grid) option.grid = { ...option.grid, left: 52, right: 16 };
   return option;
 }
